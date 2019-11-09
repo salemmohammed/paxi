@@ -111,6 +111,7 @@ func (s *socket) Send(to ID, m interface{}) {
 func (s *socket) Recv() interface{} {
 	for {
 		m := s.nodes[s.id].Recv()
+		log.Debugf("I received m ", m )
 		if !s.crash {
 			return m
 		}
@@ -150,7 +151,9 @@ func (s *socket) Broadcast(m interface{}) {
 		if id == s.id {
 			continue
 		}
+		log.Debugf("the msg is %v", m)
 		s.Send(id, m)
+
 	}
 }
 

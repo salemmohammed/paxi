@@ -42,6 +42,7 @@ func (n *node) http() {
 }
 
 func (n *node) handleRoot(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("<------------handleRoot---------->")
 	var req Request
 	var cmd Command
 	var err error
@@ -96,10 +97,10 @@ func (n *node) handleRoot(w http.ResponseWriter, r *http.Request) {
 	req.NodeID = n.id // TODO does this work when forward twice
 	req.c = make(chan Reply, 1)
 
+	log.Debugf("I am in http file %v ",req.Command)
 	n.MessageChan <- req
 
 	reply := <-req.c
-
 	if reply.Err != nil {
 		http.Error(w, reply.Err.Error(), http.StatusInternalServerError)
 		return
@@ -116,6 +117,7 @@ func (n *node) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err)
 	}
+	log.Debugf("<------- done from http -------> ")
 }
 
 func (n *node) handleHistory(w http.ResponseWriter, r *http.Request) {

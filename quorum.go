@@ -1,11 +1,20 @@
 package paxi
 
+import (
+	"github.com/ailidani/paxi/log"
+	"math"
+	"strconv"
+	"strings"
+)
+
 // Quorum records each acknowledgement and check for different types of quorum satisfied
 type Quorum struct {
 	size  int
 	acks  map[ID]bool
 	zones map[int]int
 	nacks map[ID]bool
+	ID map[ID]int
+
 }
 
 // NewQuorum returns a new Quorum
@@ -14,6 +23,7 @@ func NewQuorum() *Quorum {
 		size:  0,
 		acks:  make(map[ID]bool),
 		zones: make(map[int]int),
+		ID:	   make(map[ID]int),
 	}
 	return q
 }
@@ -24,7 +34,9 @@ func (q *Quorum) ACK(id ID) {
 		q.acks[id] = true
 		q.size++
 		q.zones[id.Zone()]++
+		q.ID[id]++
 	}
+	log.Debugf("q.size %v ",q.size)
 }
 
 // NACK adds id to quorum nack records
@@ -39,6 +51,32 @@ func (q *Quorum) ADD() {
 	q.size++
 }
 
+// ID increase ack size by one
+func (q *Quorum) IDs()int {
+
+	var cont []int
+	for i,_ := range q.ID {
+		var s string = string(i)
+		var b string
+		if strings.Contains(s, ".") {
+			split := strings.SplitN(s, ".", 2)
+			b = split[1]
+		} else {
+			b = s
+		}
+		i, _ := strconv.Atoi(b)
+		cont = append(cont, i)
+	}
+	min := 1
+	var x float64
+	var y int
+	for _, v := range cont {
+		x = math.Min(float64(min), float64(v))
+		y = int(x)
+	}
+	return y
+}
+
 // Size returns current ack size
 func (q *Quorum) Size() int {
 	return q.size
@@ -50,6 +88,7 @@ func (q *Quorum) Reset() {
 	q.acks = make(map[ID]bool)
 	q.zones = make(map[int]int)
 	q.nacks = make(map[ID]bool)
+	q.ID = make(map[ID]int)
 }
 
 func (q *Quorum) All() bool {
@@ -58,7 +97,15 @@ func (q *Quorum) All() bool {
 
 // Majority quorum satisfied
 func (q *Quorum) Majority() bool {
-	return q.size > config.n/2
+	//log.Debugf("Majority()")
+	//log.Debugf("q.size=%v",q.size)
+	log.Debugf("[q.size >= config.n*2/3] %t",q.size >= config.n*2/3)
+	return q.size >= config.n*2/3
+}
+
+// Majority quorum satisfied
+func (q *Quorum) Total() int {
+	return config.n
 }
 
 // FastQuorum from fast paxos

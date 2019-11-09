@@ -12,8 +12,8 @@ import (
 // DB is general interface implemented by client to call client library
 type DB interface {
 	Init() error
-	Read(key int) (int, error)
-	Write(key, value int) error
+	Read(key int) ([]int)
+	Write(key, value int) []error
 	Stop() error
 }
 
@@ -113,10 +113,12 @@ func (b *Benchmark) Load() {
 
 	b.startTime = time.Now()
 	for i := 0; i < b.Concurrency; i++ {
+		log.Debugf("b.Concurrency load %v ", i)
 		go b.worker(keys, latencies)
 	}
 	for i := b.Min; i < b.Min+b.K; i++ {
-		b.wait.Add(1)
+		b.wait.Add(config.n)
+		log.Debugf("b.Min %v load ", i)
 		keys <- i
 	}
 	t := time.Now().Sub(b.startTime)
@@ -133,10 +135,13 @@ func (b *Benchmark) Load() {
 
 // Run starts the main logic of benchmarking
 func (b *Benchmark) Run() {
+	log.Debugf("Run() in Benchmark")
 	var stop chan bool
 	if b.Move {
 		move := func() { b.Mu = float64(int(b.Mu+1) % b.K) }
+		log.Debugf("b.move %v ", move)
 		stop = Schedule(move, time.Duration(b.Speed)*time.Millisecond)
+		log.Debugf("stop %v ", stop)
 		defer close(stop)
 	}
 
@@ -144,7 +149,7 @@ func (b *Benchmark) Run() {
 	keys := make(chan int, b.Concurrency)
 	latencies := make(chan time.Duration, 1000)
 	defer close(latencies)
-	go b.collect(latencies)
+
 
 	for i := 0; i < b.Concurrency; i++ {
 		go b.worker(keys, latencies)
@@ -160,13 +165,17 @@ func (b *Benchmark) Run() {
 			case <-timer.C:
 				break loop
 			default:
-				b.wait.Add(1)
+				b.wait.Add(config.n)
+				log.Debugf("b.wait.Add")
+				go b.collect(latencies)
 				keys <- b.next()
 			}
+			//b.wait.Wait()
 		}
 	} else {
 		for i := 0; i < b.N; i++ {
-			b.wait.Add(1)
+			log.Debugf("b.wait.Add Total number of request")
+			b.wait.Add(4)
 			keys <- b.next()
 		}
 		b.wait.Wait()
@@ -175,6 +184,8 @@ func (b *Benchmark) Run() {
 
 	b.db.Stop()
 	close(keys)
+	//log.Debugf("Waiting ----- --- -- ")
+	//b.wait.Wait()
 	stat := Statistic(b.latency)
 	log.Infof("Concurrency = %d", b.Concurrency)
 	log.Infof("Write Ratio = %f", b.W)
@@ -239,44 +250,53 @@ func (b *Benchmark) next() int {
 	if b.Throttle > 0 {
 		b.rate.Wait()
 	}
-
 	return key
 }
 
 func (b *Benchmark) worker(keys <-chan int, result chan<- time.Duration) {
+	log.Debugf("worker")
 	var s time.Time
 	var e time.Time
+	var v1 []int
 	var v int
-	var err error
+	//var err error
+	var err1 []error
 	for k := range keys {
 		op := new(operation)
 		if rand.Float64() < b.W {
 			v = rand.Int()
 			s = time.Now()
-			err = b.db.Write(k, v)
+			err1 = b.db.Write(k, v)
 			e = time.Now()
 			op.input = v
 		} else {
 			s = time.Now()
-			v, err = b.db.Read(k)
+			v1 = b.db.Read(k)
 			e = time.Now()
-			op.output = v
+			op.output = v1
 		}
 		op.start = s.Sub(b.startTime).Nanoseconds()
-		if err == nil {
-			op.end = e.Sub(b.startTime).Nanoseconds()
-			result <- e.Sub(s)
-		} else {
-			op.end = math.MaxInt64
-			log.Error(err)
+		for _,v := range err1{
+			if v == nil {
+				op.end = e.Sub(b.startTime).Nanoseconds()
+				result <- e.Sub(s)
+			} else {
+				op.end = math.MaxInt64
+				log.Error(v)
+			}
 		}
+
 		b.History.AddOperation(k, op)
+	}
+	for i, v := range v1{
+		log.Debugf("i=%v,v=%v",i,v)
 	}
 }
 
 func (b *Benchmark) collect(latencies <-chan time.Duration) {
 	for t := range latencies {
 		b.latency = append(b.latency, t)
+		log.Debugf("b.wait.Done %v ", t)
 		b.wait.Done()
 	}
 }

@@ -1,22 +1,24 @@
 package paxi
 
+import "C"
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/ailidani/paxi/lib"
+	"github.com/ailidani/paxi/log"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"strconv"
 	"sync"
-
-	"github.com/ailidani/paxi/lib"
-	"github.com/ailidani/paxi/log"
 )
 
 // Client interface provides get and put for key value store
 type Client interface {
+	GetMUL(Key) ([]Value, []map[string]string)
+	PutMUL(Key, Value) []error
 	Get(Key) (Value, error)
 	Put(Key, Value) error
 }
@@ -79,6 +81,65 @@ func (c *HTTPClient) Put(key Key, value Value) error {
 	return err
 }
 
+func (c *HTTPClient) GetMUL(key Key) ([]Value, []map[string]string) {
+	log.Debugf("<--------------GetMUL-------------->")
+	valueChannel := make(chan Value,4)
+	MetaChannel := make(chan map[string]string,4)
+	//log.Debugf("valueChannel_0_0=%v",<- valueChannel)
+	i := 0
+	for id := range c.HTTP {
+		go func(id ID) {
+			c.CID++
+			v, meta, err := c.rest(id, key, nil,c.CID)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			//log.Debugf("-------------------------------v=%", v)
+			//log.Debugf("-------------------------------meta=%", meta)
+			valueChannel <- v
+			MetaChannel <- meta
+		}(id)
+		i++
+	}
+	values := make([]Value,0)
+	metas := make([]map[string]string,0)
+	for ; i>0; i--{
+		values = append(values, <-valueChannel)
+		metas = append(metas, <-MetaChannel)
+	}
+	//log.Debugf("values %v ", values)
+	//log.Debugf("metas %v ", metas)
+	return values, metas
+}
+
+// Put puts new key value pair and return previous value (use REST)
+// Default implementation of Client interface
+func (c *HTTPClient) PutMUL(key Key, value Value) []error {
+	log.Debugf("<----------------PutMUL---------------->")
+	i := 0
+	errs := make(chan error,4)
+	for id := range c.HTTP {
+		//log.Debugf("id=%v",id)
+		go func(id ID) {
+			c.CID++
+			_, _, err := c.rest(id, key, value,c.CID)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			errs <- err
+		}(id)
+		i++
+	}
+	errors := make([]error,0)
+	for ; i>0; i-- {
+		errors = append(errors, <-errs)
+	}
+	//log.Debugf("errors %v ", errors)
+	return errors
+}
+
 func (c *HTTPClient) GetURL(id ID, key Key) string {
 	if id == "" {
 		for id = range c.HTTP {
@@ -92,8 +153,9 @@ func (c *HTTPClient) GetURL(id ID, key Key) string {
 
 // rest accesses server's REST API with url = http://ip:port/key
 // if value == nil, it's a read
-func (c *HTTPClient) rest(id ID, key Key, value Value) (Value, map[string]string, error) {
+func (c *HTTPClient) rest(id ID, key Key, value Value,count int) (Value, map[string]string, error) {
 	// get url
+	//log.Debugf("I am in rest")
 	url := c.GetURL(id, key)
 
 	method := http.MethodGet
@@ -101,21 +163,33 @@ func (c *HTTPClient) rest(id ID, key Key, value Value) (Value, map[string]string
 	if value != nil {
 		method = http.MethodPut
 		body = bytes.NewBuffer(value)
+		//log.Debugf("method=%v",method)
 	}
+	//log.Debugf("URL %v", url)
 	req, err := http.NewRequest(method, url, body)
+	//log.Debugf("req=%v",req)
 	if err != nil {
+		log.Debugf("we cannot create a request")
 		log.Error(err)
 		return nil, nil, err
 	}
-	req.Header.Set(HTTPClientID, string(c.ID))
-	req.Header.Set(HTTPCommandID, strconv.Itoa(c.CID))
+	//log.Debugf("HTTPClientID=%v",HTTPClientID)
+	//log.Debugf("HTTPCommandID=%v",HTTPCommandID)
+	//log.Debugf("c.ID=%v",c.ID)
+	//log.Debugf("CID=%v",count)
+
+	req.Header.Set(HTTPClientID, string(id))
+	req.Header.Set(HTTPCommandID, strconv.Itoa(count))
 	// r.Header.Set(HTTPTimestamp, strconv.FormatInt(time.Now().UnixNano(), 10))
 
 	rep, err := c.Client.Do(req)
+	//log.Debugf("c.Client.Do(req)=%v",rep)
 	if err != nil {
 		log.Error(err)
 		return nil, nil, err
 	}
+
+
 	defer rep.Body.Close()
 
 	// get headers
@@ -123,6 +197,8 @@ func (c *HTTPClient) rest(id ID, key Key, value Value) (Value, map[string]string
 	for k := range rep.Header {
 		metadata[k] = rep.Header.Get(k)
 	}
+	//log.Debugf("metadata=%v",metadata)
+	//log.Debugf("rep.StatusCode=%v",rep.StatusCode)
 
 	if rep.StatusCode == http.StatusOK {
 		b, err := ioutil.ReadAll(rep.Body)
@@ -146,12 +222,12 @@ func (c *HTTPClient) rest(id ID, key Key, value Value) (Value, map[string]string
 
 // RESTGet issues a http call to node and return value and headers
 func (c *HTTPClient) RESTGet(id ID, key Key) (Value, map[string]string, error) {
-	return c.rest(id, key, nil)
+	return c.rest(id, key, nil,c.CID)
 }
 
 // RESTPut puts new value as http.request body and return previous value
 func (c *HTTPClient) RESTPut(id ID, key Key, value Value) (Value, map[string]string, error) {
-	return c.rest(id, key, value)
+	return c.rest(id, key, value,c.CID)
 }
 
 func (c *HTTPClient) json(id ID, key Key, value Value) (Value, error) {
@@ -201,7 +277,7 @@ func (c *HTTPClient) MultiGet(n int, key Key) ([]Value, []map[string]string) {
 	i := 0
 	for id := range c.HTTP {
 		go func(id ID) {
-			v, meta, err := c.rest(id, key, nil)
+			v, meta, err := c.rest(id, key, nil,c.CID)
 			if err != nil {
 				log.Error(err)
 				return
@@ -237,7 +313,7 @@ func (c *HTTPClient) LocalQuorumGet(key Key) ([]Value, []map[string]string) {
 			break
 		}
 		go func(id ID) {
-			v, meta, err := c.rest(id, key, nil)
+			v, meta, err := c.rest(id, key, nil,c.CID)
 			if err != nil {
 				log.Error(err)
 				return
@@ -268,7 +344,7 @@ func (c *HTTPClient) QuorumPut(key Key, value Value) {
 		}
 		wait.Add(1)
 		go func(id ID) {
-			c.rest(id, key, value)
+			c.rest(id, key, value,c.CID)
 			wait.Done()
 		}(id)
 	}

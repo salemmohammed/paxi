@@ -78,6 +78,7 @@ func (n *node) Run() {
 // recv receives messages from socket and pass to message channel
 func (n *node) recv() {
 	for {
+		log.Debugf("recv receives messages from socket and pass to message channel")
 		m := n.Recv()
 		switch m := m.(type) {
 		case Request:
@@ -91,7 +92,7 @@ func (n *node) recv() {
 		case Reply:
 			n.RLock()
 			r := n.forwards[m.Command.String()]
-			log.Debugf("node %v received reply %v", n.id, m)
+			log.Debugf("node) %v received reply %v", n.id, m)
 			n.RUnlock()
 			r.Reply(m)
 			continue

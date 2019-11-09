@@ -1,6 +1,7 @@
 package paxos
 
 import (
+	"github.com/ailidani/paxi/log"
 	"strconv"
 	"time"
 
@@ -84,32 +85,46 @@ func (p *Paxos) SetBallot(b paxi.Ballot) {
 
 // HandleRequest handles request and start phase 1 or phase 2
 func (p *Paxos) HandleRequest(r paxi.Request) {
+	log.Debugf("HandleRequest")
 	// log.Debugf("Replica %s received %v\n", p.ID(), r)
+
 	if !p.active {
+		log.Debugf("p.active%t",p.active)
 		p.requests = append(p.requests, &r)
 		// current phase 1 pending
+		log.Debugf("p.ballot.ID()%v",p.ballot.ID())
+		log.Debugf("p.ID()%v",p.ID())
 		if p.ballot.ID() != p.ID() {
+			log.Debugf("p.P1a() called")
 			p.P1a()
 		}
 	} else {
+		log.Debugf("p.P2a(&r)")
 		p.P2a(&r)
 	}
 }
 
 // P1a starts phase 1 prepare
 func (p *Paxos) P1a() {
+	log.Debugf("P1a")
 	if p.active {
+		log.Debugf("!p.active%t",p.active )
 		return
 	}
+	log.Debugf("p.ballot.Next(p.ID())")
 	p.ballot.Next(p.ID())
+	log.Debugf("p.ballot.Next(p.ID())%v",p.ballot)
 	p.quorum.Reset()
 	p.quorum.ACK(p.ID())
+	log.Debugf("(P1a{Ballot: p.ballot})%v",p.ballot)
 	p.Broadcast(P1a{Ballot: p.ballot})
 }
 
 // P2a starts phase 2 accept
 func (p *Paxos) P2a(r *paxi.Request) {
+	log.Debugf("P2a")
 	p.slot++
+	log.Debugf("slot%v",p.slot)
 	p.log[p.slot] = &entry{
 		ballot:    p.ballot,
 		command:   r.Command,
@@ -117,6 +132,8 @@ func (p *Paxos) P2a(r *paxi.Request) {
 		quorum:    paxi.NewQuorum(),
 		timestamp: time.Now(),
 	}
+	log.Debugf("p.log[p.slot]%v",p.log[p.slot])
+	log.Debugf("r%v,p%v",r,p)
 	p.log[p.slot].quorum.ACK(p.ID())
 	m := P2a{
 		Ballot:  p.ballot,
@@ -124,18 +141,25 @@ func (p *Paxos) P2a(r *paxi.Request) {
 		Command: r.Command,
 	}
 	if paxi.GetConfig().Thrifty {
+		log.Debugf("paxi.GetConfig().Thrifty")
 		p.MulticastQuorum(paxi.GetConfig().N()/2+1, m)
 	} else {
+		log.Debugf("Broadcast")
+		log.Debugf("m=%v",m)
 		p.Broadcast(m)
 	}
 }
 
 // HandleP1a handles P1a message
 func (p *Paxos) HandleP1a(m P1a) {
+	log.Debugf("HandleP1a")
 	// log.Debugf("Replica %s ===[%v]===>>> Replica %s\n", m.Ballot.ID(), m, p.ID())
 
 	// new leader
+	log.Debugf("new leader")
+	log.Debugf("m.Ballot%v , p.ballot%v",m.Ballot, p.ballot)
 	if m.Ballot > p.ballot {
+		log.Debugf("m.Ballot > p.ballot")
 		p.ballot = m.Ballot
 		p.active = false
 		// TODO use BackOff time or forward
@@ -147,11 +171,15 @@ func (p *Paxos) HandleP1a(m P1a) {
 	}
 
 	l := make(map[int]CommandBallot)
+	log.Debugf("p.execute%v , p.slot%v",p.execute, p.slot)
 	for s := p.execute; s <= p.slot; s++ {
+		log.Debugf("The condition is not satisfied")
 		if p.log[s] == nil || p.log[s].commit {
 			continue
 		}
 		l[s] = CommandBallot{p.log[s].command, p.log[s].ballot}
+		log.Debugf("l[s%v]%v",s,l[s])
+		log.Debugf("The condition CommandBallot is not satisfied")
 	}
 
 	p.Send(m.Ballot.ID(), P1b{
@@ -162,10 +190,14 @@ func (p *Paxos) HandleP1a(m P1a) {
 }
 
 func (p *Paxos) update(scb map[int]CommandBallot) {
+	log.Debugf("update")
 	for s, cb := range scb {
+		log.Debugf("s%v, cb%v",s, cb)
 		p.slot = paxi.Max(p.slot, s)
 		if e, exists := p.log[s]; exists {
+			log.Debugf("e, exists")
 			if !e.commit && cb.Ballot > e.ballot {
+				log.Debugf("!e.commit && cb.Ballot ")
 				e.ballot = cb.Ballot
 				e.command = cb.Command
 			}
@@ -181,9 +213,12 @@ func (p *Paxos) update(scb map[int]CommandBallot) {
 
 // HandleP1b handles P1b message
 func (p *Paxos) HandleP1b(m P1b) {
+	log.Debugf("HandleP1b")
 	// old message
+	log.Debugf("m.Ballot%v, p.active%t, p.ballot%v", m.Ballot, p.active,p.ballot)
 	if m.Ballot < p.ballot || p.active {
 		// log.Debugf("Replica %s ignores old message [%v]\n", p.ID(), m)
+		log.Debugf("Replica %s ignores old message [%v]\n", p.ID(), m)
 		return
 	}
 
@@ -193,6 +228,7 @@ func (p *Paxos) HandleP1b(m P1b) {
 
 	// reject message
 	if m.Ballot > p.ballot {
+		log.Debugf("reject message")
 		p.ballot = m.Ballot
 		p.active = false // not necessary
 		// forward pending requests to new leader
@@ -202,13 +238,17 @@ func (p *Paxos) HandleP1b(m P1b) {
 
 	// ack message
 	if m.Ballot.ID() == p.ID() && m.Ballot == p.ballot {
+		log.Debugf("m.Ballot.ID()%v, p.ID()%v, p.ballot%v", m.Ballot.ID(), p.ID(),p.ballot)
 		p.quorum.ACK(m.ID)
 		if p.Q1(p.quorum) {
+			log.Debugf("p.Q1(p.quorum)")
 			p.active = true
 			// propose any uncommitted entries
 			for i := p.execute; i <= p.slot; i++ {
 				// TODO nil gap?
+				log.Debugf("p.slot%v, p.execute%v",p.slot,p.execute)
 				if p.log[i] == nil || p.log[i].commit {
+					log.Debugf("p.log[i]%v",p.log[i])
 					continue
 				}
 				p.log[i].ballot = p.ballot
@@ -222,6 +262,7 @@ func (p *Paxos) HandleP1b(m P1b) {
 			}
 			// propose new commands
 			for _, req := range p.requests {
+				log.Debugf("propose new commands req%v",req)
 				p.P2a(req)
 			}
 			p.requests = make([]*paxi.Request, 0)
@@ -231,15 +272,18 @@ func (p *Paxos) HandleP1b(m P1b) {
 
 // HandleP2a handles P2a message
 func (p *Paxos) HandleP2a(m P2a) {
-	// log.Debugf("Replica %s ===[%v]===>>> Replica %s\n", m.Ballot.ID(), m, p.ID())
-
+	 log.Debugf("HandleP2a")
 	if m.Ballot >= p.ballot {
+		log.Debugf("m.Ballot%v, p.ballot%v", m.Ballot, p.ballot)
 		p.ballot = m.Ballot
 		p.active = false
 		// update slot number
 		p.slot = paxi.Max(p.slot, m.Slot)
+		log.Debugf("p.slot%v",p.slot)
 		// update entry
 		if e, exists := p.log[m.Slot]; exists {
+			log.Debugf("exists%v",exists)
+			log.Debugf("p.log[m.Slot]%v",p.log[m.Slot])
 			if !e.commit && m.Ballot > e.ballot {
 				// different command and request is not nil
 				if !e.command.Equal(m.Command) && e.request != nil {
@@ -251,6 +295,7 @@ func (p *Paxos) HandleP2a(m P2a) {
 				e.ballot = m.Ballot
 			}
 		} else {
+			log.Debugf("p.log[m.Slot]")
 			p.log[m.Slot] = &entry{
 				ballot:  m.Ballot,
 				command: m.Command,
@@ -268,8 +313,10 @@ func (p *Paxos) HandleP2a(m P2a) {
 
 // HandleP2b handles P2b message
 func (p *Paxos) HandleP2b(m P2b) {
+	log.Debugf("HandleP2b")
 	// old message
 	entry, exist := p.log[m.Slot]
+	log.Debugf("entry%v",entry)
 	if !exist || m.Ballot < entry.ballot || entry.commit {
 		return
 	}
@@ -287,6 +334,7 @@ func (p *Paxos) HandleP2b(m P2b) {
 	// the current slot might still be committed with q2
 	// if no q2 can be formed, this slot will be retried when received p2a or p3
 	if m.Ballot.ID() == p.ID() && m.Ballot == p.log[m.Slot].ballot {
+		log.Debugf("ack message")
 		p.log[m.Slot].quorum.ACK(m.ID)
 		if p.Q2(p.log[m.Slot].quorum) {
 			p.log[m.Slot].commit = true
@@ -297,12 +345,14 @@ func (p *Paxos) HandleP2b(m P2b) {
 			})
 
 			if p.ReplyWhenCommit {
+				log.Debugf("ReplyWhenCommit")
 				r := p.log[m.Slot].request
 				r.Reply(paxi.Reply{
 					Command:   r.Command,
 					Timestamp: r.Timestamp,
 				})
 			} else {
+				log.Debugf("p.exec()2")
 				p.exec()
 			}
 		}
@@ -312,17 +362,19 @@ func (p *Paxos) HandleP2b(m P2b) {
 // HandleP3 handles phase 3 commit message
 func (p *Paxos) HandleP3(m P3) {
 	// log.Debugf("Replica %s ===[%v]===>>> Replica %s\n", m.Ballot.ID(), m, p.ID())
-
+	log.Debugf("HandleP3")
 	p.slot = paxi.Max(p.slot, m.Slot)
-
+	log.Debugf("p.slot%v",p.slot)
 	e, exist := p.log[m.Slot]
 	if exist {
+		log.Debugf("exist")
 		if !e.command.Equal(m.Command) && e.request != nil {
 			// p.Retry(*e.request)
 			p.Forward(m.Ballot.ID(), *e.request)
 			e.request = nil
 		}
 	} else {
+		log.Debugf("else")
 		p.log[m.Slot] = &entry{}
 		e = p.log[m.Slot]
 	}
@@ -343,6 +395,7 @@ func (p *Paxos) HandleP3(m P3) {
 }
 
 func (p *Paxos) exec() {
+	log.Debugf("exec")
 	for {
 		e, ok := p.log[p.execute]
 		if !ok || !e.commit {
@@ -369,8 +422,13 @@ func (p *Paxos) exec() {
 }
 
 func (p *Paxos) forward() {
+	log.Debugf("forward")
+	log.Debugf("p.requests%v",p.requests)
 	for _, m := range p.requests {
 		p.Forward(p.ballot.ID(), *m)
+		log.Debugf("p.ballot.ID()%v",p.ballot.ID())
+		log.Debugf("p.ballot.ID()%v",m)
 	}
 	p.requests = make([]*paxi.Request, 0)
+	log.Debugf("End forward%v",p.requests)
 }

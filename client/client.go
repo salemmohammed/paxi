@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"flag"
+	"github.com/ailidani/paxi/log"
 
 	"github.com/ailidani/paxi"
 	"github.com/ailidani/paxi/chain"
@@ -10,7 +11,7 @@ import (
 )
 
 var id = flag.String("id", "", "node id this client connects to")
-var algorithm = flag.String("algorithm", "", "Client API type [paxos, chain]")
+var algorithm = flag.String("algorithm", "pbft", "Client API type [paxos, chain]")
 var load = flag.Bool("load", false, "Load K keys into DB")
 var master = flag.String("master", "", "Master address.")
 
@@ -27,21 +28,31 @@ func (d *db) Stop() error {
 	return nil
 }
 
-func (d *db) Read(k int) (int, error) {
+
+func (d *db) Read(k int) (value []int) {
+	//log.Debugf("Read")
 	key := paxi.Key(k)
-	v, err := d.Get(key)
+	v, _ := d.GetMUL(key)
+	//log.Debugf("after the Read in client")
 	if len(v) == 0 {
-		return 0, nil
+		//log.Debugf("len(v) %v", len(v))
+		return nil
 	}
-	x, _ := binary.Uvarint(v)
-	return int(x), err
+	var m []int
+	for _,v := range v{
+		x, _ := binary.Uvarint(v)
+		//log.Debugf("x %v", x)
+		m = append(m,int(x))
+	}
+	//log.Debugf("m %v", m)
+	return m
 }
 
-func (d *db) Write(k, v int) error {
+func (d *db) Write(k, v int) []error {
 	key := paxi.Key(k)
 	value := make([]byte, binary.MaxVarintLen64)
 	binary.PutUvarint(value, uint64(v))
-	err := d.Put(key, value)
+	err := d.PutMUL(key, value)
 	return err
 }
 
@@ -58,14 +69,18 @@ func main() {
 		d.Client = paxos.NewClient(paxi.ID(*id))
 	case "chain":
 		d.Client = chain.NewClient()
+	case "pbft":
+		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
 	default:
 		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
 	}
 
 	b := paxi.NewBenchmark(d)
 	if *load {
+		log.Debugf("Load in Clinet is started")
 		b.Load()
 	} else {
+		log.Debugf("Run in Clinet is started")
 		b.Run()
 	}
 }

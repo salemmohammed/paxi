@@ -20,9 +20,10 @@ import (
 	"github.com/ailidani/paxi/vpaxos"
 	"github.com/ailidani/paxi/wankeeper"
 	"github.com/ailidani/paxi/wpaxos"
+	"github.com/ailidani/paxi/pbft"
 )
 
-var algorithm = flag.String("algorithm", "paxos", "Distributed algorithm")
+var algorithm = flag.String("algorithm", "pbft", "Distributed algorithm")
 var id = flag.String("id", "", "ID in format of Zone.Node.")
 var simulation = flag.Bool("sim", false, "simulation mode")
 
@@ -78,6 +79,9 @@ func replica(id paxi.ID) {
 
 	case "hpaxos":
 		hpaxos.NewReplica(id).Run()
+
+	case "pbft":
+		pbft.NewReplica(id).Run()
 
 	default:
 		panic("Unknown algorithm")

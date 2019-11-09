@@ -27,6 +27,7 @@ type Replica struct {
 
 // NewReplica generates new Paxos replica
 func NewReplica(id paxi.ID) *Replica {
+	log.Debugf("Replica started \n")
 	r := new(Replica)
 	r.Node = paxi.NewNode(id)
 	r.Paxos = NewPaxos(r)
@@ -43,6 +44,8 @@ func (r *Replica) handleRequest(m paxi.Request) {
 	log.Debugf("Replica %s received %v\n", r.ID(), m)
 
 	if m.Command.IsRead() && *read != "" {
+		log.Debugf("Command.IsRead%t",m.Command.IsRead())
+		log.Debugf("Read%s",*read)
 		v, inProgress := r.readInProgress(m)
 		reply := paxi.Reply{
 			Command:    m.Command,
@@ -59,9 +62,13 @@ func (r *Replica) handleRequest(m paxi.Request) {
 	}
 
 	if *ephemeralLeader || r.Paxos.IsLeader() || r.Paxos.Ballot() == 0 {
+		log.Debugf("HandleRequest(m)---------------------------%v",m)
 		r.Paxos.HandleRequest(m)
+
 	} else {
+		log.Debugf("Forward---------------------------")
 		go r.Forward(r.Paxos.Leader(), m)
+
 	}
 }
 
@@ -70,7 +77,7 @@ func (r *Replica) readInProgress(m paxi.Request) (paxi.Value, bool) {
 	// (1) last slot is read?
 	// (2) entry in log over writen
 	// (3) value is not overwriten command
-
+	log.Debugf("is in progress")
 	// is in progress
 	for i := r.Paxos.slot; i >= r.Paxos.execute; i-- {
 		entry, exist := r.Paxos.log[i]
