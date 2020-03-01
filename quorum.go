@@ -13,7 +13,9 @@ type Quorum struct {
 	acks  map[ID]bool
 	zones map[int]int
 	nacks map[ID]bool
-	ID map[ID]int
+	ID    map[ID]int
+	n	  float64
+	AID   []ID
 
 }
 
@@ -24,6 +26,8 @@ func NewQuorum() *Quorum {
 		acks:  make(map[ID]bool),
 		zones: make(map[int]int),
 		ID:	   make(map[ID]int),
+		AID:   make([]ID,0),
+		n:	   -1,
 	}
 	return q
 }
@@ -35,8 +39,9 @@ func (q *Quorum) ACK(id ID) {
 		q.size++
 		q.zones[id.Zone()]++
 		q.ID[id]++
+		q.AID_ID(id)
 	}
-	log.Debugf("q.size %v ",q.size)
+	//log.Debugf("q.size %v ",q.size)
 }
 
 // NACK adds id to quorum nack records
@@ -50,10 +55,19 @@ func (q *Quorum) NACK(id ID) {
 func (q *Quorum) ADD() {
 	q.size++
 }
+// ADD increase ack size by one
+func (q *Quorum) AID_ID(id ID) {
+	for _,v := range q.AID{
+		if v == id {
+			return
+		}
+	}
+	 q.AID = append(q.AID, id)
+	log.Debugf("ids %v", q.AID)
+}
 
 // ID increase ack size by one
 func (q *Quorum) IDs()int {
-
 	var cont []int
 	for i,_ := range q.ID {
 		var s string = string(i)
@@ -99,13 +113,26 @@ func (q *Quorum) All() bool {
 func (q *Quorum) Majority() bool {
 	//log.Debugf("Majority()")
 	//log.Debugf("q.size=%v",q.size)
-	log.Debugf("[q.size >= config.n*2/3] %t",q.size >= config.n*2/3)
-	return q.size >= config.n*2/3
+	log.Debugf("[q.size >= config.n*2/3] %t", q.size >= ((config.n*2/3)))
+	return q.size >= (config.n*2/3)
 }
+
+func (q *Quorum) MajorityT() bool {
+	//log.Debugf("Majority()")
+	//log.Debugf("q.size=%v",q.size)
+	log.Debugf("[q.size >= config.n / 2 ] %t",  q.size >= config.n / 2 )
+	return q.size >= config.n / 2
+}
+
 
 // Majority quorum satisfied
 func (q *Quorum) Total() int {
 	return config.n
+}
+
+func (q *Quorum) INC() float64{
+	q.n++
+	return q.n
 }
 
 // FastQuorum from fast paxos

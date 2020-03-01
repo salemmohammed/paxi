@@ -78,7 +78,7 @@ func (n *node) Run() {
 // recv receives messages from socket and pass to message channel
 func (n *node) recv() {
 	for {
-		log.Debugf("recv receives messages from socket and pass to message channel")
+		//log.Debugf("recv receives messages from socket and pass to message channel")
 		m := n.Recv()
 		switch m := m.(type) {
 		case Request:
@@ -92,7 +92,7 @@ func (n *node) recv() {
 		case Reply:
 			n.RLock()
 			r := n.forwards[m.Command.String()]
-			log.Debugf("node) %v received reply %v", n.id, m)
+			//log.Debugf("node) %v received reply %v", n.id, m)
 			n.RUnlock()
 			r.Reply(m)
 			continue
@@ -103,6 +103,7 @@ func (n *node) recv() {
 
 // handle receives messages from message channel and calls handle function using refection
 func (n *node) handle() {
+	log.Debugf("salem in handle")
 	for {
 		msg := <-n.MessageChan
 		v := reflect.ValueOf(msg)
@@ -119,9 +120,7 @@ func (n *node) handle() {
 func (n *node) Forward(id ID, m Request) {
 	key := m.Command.Key
 	url := config.HTTPAddrs[id] + "/" + strconv.Itoa(int(key))
-
 	log.Debugf("Node %v forwarding %v to %s", n.ID(), m, id)
-
 	method := http.MethodGet
 	var body io.Reader
 	if !m.Command.IsRead() {

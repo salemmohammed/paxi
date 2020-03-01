@@ -22,6 +22,12 @@ func NewID(zone, node int) ID {
 	return ID(strconv.Itoa(zone) + "." + strconv.Itoa(node))
 }
 
+// NewID returns a new ID type given two int number of zone and node
+func NewIDRest(zone, node int) ID {
+	// return ID(fmt.Sprintf("%d.%d", zone, node))
+	return ID(strconv.Itoa(zone) + "." + strconv.Itoa(node))
+}
+
 // Zone returns Zond ID component
 func (i ID) Zone() int {
 	if !strings.Contains(string(i), ".") {

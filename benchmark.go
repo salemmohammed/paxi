@@ -166,6 +166,7 @@ func (b *Benchmark) Run() {
 				break loop
 			default:
 				b.wait.Add(config.n)
+				//b.wait.Add(1)
 				log.Debugf("b.wait.Add")
 				go b.collect(latencies)
 				keys <- b.next()
@@ -175,18 +176,18 @@ func (b *Benchmark) Run() {
 	} else {
 		for i := 0; i < b.N; i++ {
 			log.Debugf("b.wait.Add Total number of request")
-			b.wait.Add(4)
+			b.wait.Add(1)
 			keys <- b.next()
 		}
 		b.wait.Wait()
 	}
 	t := time.Now().Sub(b.startTime)
-
 	b.db.Stop()
 	close(keys)
 	//log.Debugf("Waiting ----- --- -- ")
 	//b.wait.Wait()
 	stat := Statistic(b.latency)
+	log.Infof("latency length = %d", len(b.latency))
 	log.Infof("Concurrency = %d", b.Concurrency)
 	log.Infof("Write Ratio = %f", b.W)
 	log.Infof("Number of Keys = %d", b.K)
@@ -266,26 +267,40 @@ func (b *Benchmark) worker(keys <-chan int, result chan<- time.Duration) {
 		if rand.Float64() < b.W {
 			v = rand.Int()
 			s = time.Now()
+			//time.Sleep(2 * time.Millisecond)
 			err1 = b.db.Write(k, v)
 			e = time.Now()
+			log.Debugf("W")
 			op.input = v
 		} else {
 			s = time.Now()
+			//time.Sleep(2 * time.Millisecond)
 			v1 = b.db.Read(k)
 			e = time.Now()
+			log.Debugf("R")
 			op.output = v1
 		}
+		flag := false
 		op.start = s.Sub(b.startTime).Nanoseconds()
 		for _,v := range err1{
-			if v == nil {
-				op.end = e.Sub(b.startTime).Nanoseconds()
-				result <- e.Sub(s)
-			} else {
+			//if v == nil {
+			//	op.end = e.Sub(b.startTime).Nanoseconds()
+			//	result <- e.Sub(s)
+			//} else {
+			//	flag = true
+			//	op.end = math.MaxInt64
+			//	log.Error(v)
+			//}
+			if v != nil {
+				flag = true
 				op.end = math.MaxInt64
 				log.Error(v)
 			}
 		}
-
+		if flag == false{
+			op.end = e.Sub(b.startTime).Nanoseconds()
+			result <- e.Sub(s)
+		}
 		b.History.AddOperation(k, op)
 	}
 	for i, v := range v1{

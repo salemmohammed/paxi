@@ -27,6 +27,10 @@ func (v View) ID() ID {
 	node := int(uint16(v))
 	return NewID(zone, node)
 }
+// ID return node id as last 32 bits of ballot
+func (v View) Reset(id ID) ID {
+	return NewIDRest(0, 0)
+}
 
 // Next generates the next ballot number given node id
 func (v *View) Next(id ID) {

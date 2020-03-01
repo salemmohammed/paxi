@@ -7,8 +7,6 @@ import (
 )
 
 func init() {
-	gob.Register(ViewChange{})
-	gob.Register(LeaderChange{})
 	gob.Register(PrePrepare{})
 	gob.Register(Prepare{})
 	gob.Register(Commit{})
@@ -27,7 +25,7 @@ type PrePrepare struct {
 }
 
 func (m PrePrepare) String() string {
-	return fmt.Sprintf("PrePrepare {b=%v v=%v s=%v r=%v c=%v id=%v}", m.Ballot,m.View,m.Slot,m.Request,m.Command,m.ID)
+	return fmt.Sprintf("PrePrepare {Ballot=%v , View=%v, slot=%v, Command=%v}", m.Ballot,m.View,m.Slot,m.Command)
 }
 
 // Prepare message
@@ -42,7 +40,7 @@ type Prepare struct {
 }
 
 func (m Prepare) String() string {
-	return fmt.Sprintf("Prepare {b=%v id=%v v=%v s=%v c=%v}", m.Ballot,m.ID,m.View,m.Slot,m.Command)
+	return fmt.Sprintf("Prepare {Ballot=%v, ID=%v, View=%v, slot=%v, command=%v}", m.Ballot,m.ID,m.View,m.Slot,m.Command)
 }
 
 // Commit  message
@@ -54,30 +52,8 @@ type Commit struct {
 	Digest 	 []byte
 	Command  paxi.Command
 	Request  paxi.Request
-	Mprepare bool
 }
 
 func (m Commit) String() string {
-	return fmt.Sprintf("Commit {b=%v id=%v v=%v s=%v c=%v, Mprepare%v}", m.Ballot,m.ID,m.View,m.Slot, m.Command, m.Mprepare)
-}
-
-// ViewChange selects/discovers who is the leader
-type ViewChange struct {
-	View    paxi.View
-	ID 		paxi.ID
-	Request paxi.Request
-}
-
-func (l ViewChange) String() string {
-	return fmt.Sprintf("ViewChange {View=%v, ID=%v, Request=%v}", l.View, l.ID,l.Request)
-}
-
-// LeaderChange tells others who is a new leader
-type LeaderChange struct {
-	View   paxi.View
-	ID 	   paxi.ID
-}
-
-func (l LeaderChange) String() string {
-	return fmt.Sprintf("LeaderChange {View=%v, ID=%v}", l.View,l.ID)
+	return fmt.Sprintf("Commit {Ballot=%v, ID=%v, View=%v, Slot=%v, command=%v}", m.Ballot,m.ID,m.View,m.Slot, m.Command)
 }

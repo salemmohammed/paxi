@@ -83,8 +83,8 @@ func (c *HTTPClient) Put(key Key, value Value) error {
 
 func (c *HTTPClient) GetMUL(key Key) ([]Value, []map[string]string) {
 	log.Debugf("<--------------GetMUL-------------->")
-	valueChannel := make(chan Value,4)
-	MetaChannel := make(chan map[string]string,4)
+	valueChannel := make(chan Value, len(c.HTTP))
+	MetaChannel := make(chan map[string]string,len(c.HTTP))
 	//log.Debugf("valueChannel_0_0=%v",<- valueChannel)
 	i := 0
 	for id := range c.HTTP {
@@ -95,8 +95,6 @@ func (c *HTTPClient) GetMUL(key Key) ([]Value, []map[string]string) {
 				log.Error(err)
 				return
 			}
-			//log.Debugf("-------------------------------v=%", v)
-			//log.Debugf("-------------------------------meta=%", meta)
 			valueChannel <- v
 			MetaChannel <- meta
 		}(id)
@@ -118,7 +116,7 @@ func (c *HTTPClient) GetMUL(key Key) ([]Value, []map[string]string) {
 func (c *HTTPClient) PutMUL(key Key, value Value) []error {
 	log.Debugf("<----------------PutMUL---------------->")
 	i := 0
-	errs := make(chan error,4)
+	errs := make(chan error,len(c.HTTP))
 	for id := range c.HTTP {
 		//log.Debugf("id=%v",id)
 		go func(id ID) {
@@ -206,7 +204,8 @@ func (c *HTTPClient) rest(id ID, key Key, value Value,count int) (Value, map[str
 			log.Error(err)
 			return nil, metadata, err
 		}
-		if value == nil {
+
+		if value == nil{
 			log.Debugf("node=%v type=%s key=%v value=%x", id, method, key, Value(b))
 		} else {
 			log.Debugf("node=%v type=%s key=%v value=%x", id, method, key, value)

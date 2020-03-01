@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/ailidani/paxi/tendermint"
 	"sync"
 
 	"github.com/ailidani/paxi"
@@ -23,9 +24,10 @@ import (
 	"github.com/ailidani/paxi/pbft"
 )
 
-var algorithm = flag.String("algorithm", "pbft", "Distributed algorithm")
+var algorithm = flag.String("algorithm", "paxos", "Distributed algorithm")
 var id = flag.String("id", "", "ID in format of Zone.Node.")
 var simulation = flag.Bool("sim", false, "simulation mode")
+var addr = flag.String("addr", "", "Server address (by default picks up local ip address)")
 
 var master = flag.String("master", "", "Master address.")
 
@@ -82,6 +84,9 @@ func replica(id paxi.ID) {
 
 	case "pbft":
 		pbft.NewReplica(id).Run()
+
+	case "tendermint":
+		tendermint.NewReplica(id).Run()
 
 	default:
 		panic("Unknown algorithm")

@@ -3,6 +3,7 @@ package paxi
 import (
 	"encoding/gob"
 	"fmt"
+	"github.com/ailidani/paxi/log"
 )
 
 func init() {
@@ -31,6 +32,9 @@ type Request struct {
 
 // Reply replies to current client session
 func (r *Request) Reply(reply Reply) {
+	log.Debugf("reply %v ", reply)
+	log.Debugf("re %v ", r)
+
 	r.c <- reply
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 var id = flag.String("id", "", "node id this client connects to")
-var algorithm = flag.String("algorithm", "pbft", "Client API type [paxos, chain]")
+var algorithm = flag.String("algorithm", "paxos", "Client API type [paxos, chain]")
 var load = flag.Bool("load", false, "Load K keys into DB")
 var master = flag.String("master", "", "Master address.")
 
@@ -69,7 +69,7 @@ func main() {
 		d.Client = paxos.NewClient(paxi.ID(*id))
 	case "chain":
 		d.Client = chain.NewClient()
-	case "pbft":
+	case "tendermint":
 		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
 	default:
 		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
