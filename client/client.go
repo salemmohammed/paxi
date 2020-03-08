@@ -71,6 +71,8 @@ func main() {
 		d.Client = chain.NewClient()
 	case "tendermint":
 		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
+	case "tendStar":
+		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
 	default:
 		d.Client = paxi.NewHTTPClient(paxi.ID(*id))
 	}

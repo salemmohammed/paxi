@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"github.com/ailidani/paxi/tendermint"
-	"github.com/ailidani/paxi/tendStar"
 	"sync"
 
 	"github.com/ailidani/paxi"
@@ -88,9 +87,6 @@ func replica(id paxi.ID) {
 
 	case "tendermint":
 		tendermint.NewReplica(id).Run()
-
-	case "tendStar":
-		tendStar.NewReplica(id).Run()
 
 	default:
 		panic("Unknown algorithm")
